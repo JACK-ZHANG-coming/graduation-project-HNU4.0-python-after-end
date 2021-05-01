@@ -1,0 +1,84 @@
+# coding=gbk
+import requests
+import json
+from lxml import etree
+
+# 图书馆网址       ---需登录校园网
+detailurl = 'http://opac.hytc.edu.cn:8080/opac/'
+whereurl = 'http://opac.hytc.edu.cn:8080/opac/ajax_'
+def findBook_func(value):
+    # 获取网页源码
+    def GetHtmlText(url):
+        header = {
+            'Accept': 'textml, */*; q=0.01',
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Connection': 'keep-alive',
+            #'Cookie': 'PHPSESSID=4ebqukv4mu5r4j7mjmm4or3d73',
+            'Host': 'opac.hytc.edu.cn:8080',
+            'Referer': 'http://opac.hytc.edu.cn:8080/opac/openlink.php?strSearchType=title&historyCount=1&strText=%E4%B8%89%E4%BD%93&doctype=ALL',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+        try:
+            r=requests.get(url,timeout=30,headers=header)
+            r.raise_for_status()
+            r.encoding=r.apparent_encoding
+            return r.text
+        except:
+            return "访问失败"
+
+    def GetWhere(url):
+        r = GetHtmlText(url)
+        xpathHtml = etree.HTML(r)
+        Wheres=xpathHtml.xpath('//tr[@class="whitetext"]')
+        resultlist=[]
+        for w in Wheres:
+            num=w[1].xpath('./text()')
+            year = w[2].xpath('./text()')
+            address=w[3].xpath('./text()')
+            state=w[4].xpath('./font/text()')
+            j={'num':num,'year':year,'address':address,'state':state}
+            resultlist.append(j)
+        return resultlist
+
+    # 获取目标搜素所有图书
+    def GetAllbook(bookname):
+        bookDetailList=[]
+        firsturl='http://opac.hytc.edu.cn:8080/opac/openlink.php?s2_type=title&s2_text=%E6%95%B0%E5%AD%A6&search_bar=new&title=%E6%95%B0%E5%AD%A6&doctype=ALL&with_ebook=off&match_flag=forward&showmode=list&location=ALL'
+        # 字符串拼接，加入bookname
+        htmlurl = 'http://opac.hytc.edu.cn:8080/opac/openlink.php?location=ALL&title='+bookname+'&doctype=ALL&lang_code=ALL&match_flag=forward&displaypg=20&showmode=list&orderby=DESC&sort=CATA_DATE&onlylendable=no&count=2298&with_ebook=off&page='
+        r=GetHtmlText(firsturl)
+        # 解析该源码
+        xpathHtml=etree.HTML(r)
+        #xPath解析语法
+        allpage =int(xpathHtml.xpath('//span[@class="num_prev"]/b/font')[1].xpath('./text()')[0])
+        print("allpage:",allpage)
+
+        for page in range(1,allpage):
+            r = GetHtmlText(htmlurl + str(page))
+            xpathHtml = etree.HTML(r)
+            allbookXpath = xpathHtml.xpath('//*[@id="search_book_list"]/*')
+            for bookbox in allbookXpath:
+                lanvage=bookbox[0].xpath('./span/text()')
+                name=bookbox[0].xpath('./a/text()')[0]
+                num=bookbox[0].xpath('./text()')
+                href=whereurl+bookbox[0].xpath('./a/@href')[0]
+                author=bookbox[1].xpath('./text()')[1]
+                borrow=bookbox[1].xpath('./span/text()')[1]
+                piblish=bookbox[1].xpath('./text()')[2]
+                whereList=GetWhere(href)
+                score=bookbox[1].xpath('./text()')[4]
+                #print('第'+str(page)+'页'+name)
+                j={'lanvage':lanvage,'name':name,'num':num,'author':author,'borrow':borrow,'publish':piblish,'whereList':whereList,'score':score}
+                bookDetailList.append(j)
+        return bookDetailList
+    #'数学'
+    allbookList=GetAllbook(value)
+    print('allbookList:',allbookList)
+    # for b in allbookList:
+    #     print(b['lanvage'],b['name'])
+
+# findBook_func('微信')
+    # 此处返回给微信小程序
+    # return allbookList
